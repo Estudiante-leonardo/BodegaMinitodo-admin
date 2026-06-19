@@ -1,18 +1,20 @@
-import { useContext } from 'react';
 import { Navigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
-export const ProtectedRoute = ({ children, requireAdmin = false }) => {
-    const { token, user } = useContext(AuthContext);
+export const ProtectedRoute = ({ children }) => {
+    const { session, loading } = useAuth();
 
-    if (!token) {
-        // No está logueado, lo mandamos al login
-        return <Navigate to="/login" replace />;
+    // Muestra spinner mientras Supabase verifica la sesión inicial
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-dark-950">
+                <div className="w-10 h-10 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
     }
 
-    if (requireAdmin && user?.rol !== 'admin') {
-        // Está logueado pero no es admin, lo mandamos al inicio
-        return <Navigate to="/" replace />;
+    if (!session) {
+        return <Navigate to="/login" replace />;
     }
 
     return children;

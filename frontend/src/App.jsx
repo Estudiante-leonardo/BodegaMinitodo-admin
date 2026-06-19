@@ -1,36 +1,35 @@
-import { Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Home from './pages/Home';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminLayout from './components/AdminLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import './App.css';
 
 function App() {
   return (
-    <>
-      <Navbar />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route 
-          path="/" 
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/admin" 
-          element={
-            <ProtectedRoute requireAdmin={true}>
+    <Routes>
+      {/* Ruta pública: Login */}
+      <Route path="/login" element={<Login />} />
+
+      {/* Ruta protegida: Panel de administración */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminLayout>
               <AdminDashboard />
-            </ProtectedRoute>
-          } 
-        />
-      </Routes>
-    </>
-  )
+            </AdminLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Redirigir la raíz al panel */}
+      <Route path="/" element={<Navigate to="/admin" replace />} />
+
+      {/* Cualquier ruta desconocida → login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
 }
 
 export default App;

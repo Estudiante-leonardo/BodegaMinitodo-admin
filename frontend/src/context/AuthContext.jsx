@@ -1,40 +1,38 @@
-import { createContext, useState, useEffect } from 'react';
-import { jwtDecode } from 'jwt-decode';
+import { createContext, useState, useEffect, useContext } from 'react';
+import { supabase } from '../config/supabaseClient';
 
-export const AuthContext = createContext();
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [token, setToken] = useState(localStorage.getItem('token') || null);
-    const [user, setUser] = useState(null);
+    const [session, setSession] = useState(undefined); // undefined = cargando
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (token) {
-            try {
-                const decoded = jwtDecode(token);
-                // decoded.rol is what we added in our JwtService backend
-                setUser({ username: decoded.sub, rol: decoded.rol });
-                localStorage.setItem('token', token);
-            } catch (e) {
-                console.error("Token inválido", e);
-                logout();
-            }
-        } else {
-            setUser(null);
-            localStorage.removeItem('token');
-        }
-    }, [token]);
+        // Obtiene la sesión inicial (si hay una cookie/token guardado)
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setLoading(false);
+        });
 
-    const login = (newToken) => {
-        setToken(newToken);
-    };
+        // Escucha cambios de autenticación (login, logout, expiración)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
 
-    const logout = () => {
-        setToken(null);
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const signOut = async () => {
+        await supabase.auth.signOut();
+        setSession(null);
     };
 
     return (
-        <AuthContext.Provider value={{ token, user, login, logout }}>
+        <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut }}>
             {children}
         </AuthContext.Provider>
     );
 };
+
+// Hook de acceso rápido
+export const useAuth = () => useContext(AuthContext);

@@ -1,482 +1,419 @@
-import { useState, useEffect, useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
-import { API, authHeaders, authGetHeaders, cacheBustUrl } from '../config/api';
+import { useState, useEffect, useCallback } from 'react';
+import {
+    getProductos,
+    insertProducto,
+    updateProducto,
+    deleteProducto,
+} from '../services/productosService';
 
-const AdminDashboard = () => {
-    const { token } = useContext(AuthContext);
-    const [activeTab, setActiveTab] = useState('productos');
-    const [productos, setProductos] = useState([]);
-    const [categorias, setCategorias] = useState([]);
-    const [ofertas, setOfertas] = useState([]);
-    
-    const [showModalProd, setShowModalProd] = useState(false);
-    const [id, setId] = useState(null);
-    const [nombre, setNombre] = useState('');
-    const [descripcion, setDescripcion] = useState('');
-    const [precio, setPrecio] = useState('');
-    const [stock, setStock] = useState('');
-    const [stockMinimo, setStockMinimo] = useState('');
-    const [categoriaId, setCategoriaId] = useState('');
-    const [imagen, setImagen] = useState('');
-    
-    const [showModalCat, setShowModalCat] = useState(false);
-    const [catId, setCatId] = useState(null);
-    const [catNombre, setCatNombre] = useState('');
-    const [catDescripcion, setCatDescripcion] = useState('');
-
-    const [showModalOferta, setShowModalOferta] = useState(false);
-    const [ofId, setOfId] = useState(null);
-    const [ofTitulo, setOfTitulo] = useState('');
-    const [ofDescripcion, setOfDescripcion] = useState('');
-    const [ofImagen, setOfImagen] = useState('');
-    const [ofActiva, setOfActiva] = useState(true);
-
+/* ──────────────────────────────────────────────
+   TOAST de notificación
+────────────────────────────────────────────── */
+const Toast = ({ message, type, onClose }) => {
     useEffect(() => {
-        cargarDatos();
-    }, []);
+        const t = setTimeout(onClose, 3500);
+        return () => clearTimeout(t);
+    }, [onClose]);
 
-    const cargarDatos = () => {
-        fetch(cacheBustUrl(API.endpoints.productos()), { 
-            headers: authGetHeaders(token),
-            cache: 'no-store'
-        })
-            .then(res => {
-                if(!res.ok) throw new Error("Error fetching productos");
-                return res.json();
-            })
-            .then(data => {
-                if(Array.isArray(data)) setProductos(data);
-            })
-            .catch(err => console.error(err));
+    const colors = type === 'success'
+        ? 'bg-emerald-900/80 border-emerald-500/40 text-emerald-300'
+        : 'bg-brand-900/80 border-brand-500/40 text-brand-300';
 
-        fetch(cacheBustUrl(API.endpoints.categorias()), { 
-            headers: authGetHeaders(token),
-            cache: 'no-store'
-        })
-            .then(res => {
-                if(!res.ok) throw new Error("Error fetching categorias");
-                return res.json();
-            })
-            .then(data => {
-                if(Array.isArray(data)) setCategorias(data);
-            })
-            .catch(err => console.error(err));
+    return (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl animate-fade-up ${colors}`}>
+            {type === 'success'
+                ? <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clipRule="evenodd" /></svg>
+                : <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+            }
+            <span className="text-sm font-medium">{message}</span>
+        </div>
+    );
+};
 
-        fetch(cacheBustUrl(API.endpoints.ofertas()), { 
-            headers: authGetHeaders(token),
-            cache: 'no-store'
-        })
-            .then(res => {
-                if(!res.ok) throw new Error("Error fetching ofertas");
-                return res.json();
-            })
-            .then(data => {
-                if(Array.isArray(data)) setOfertas(data);
-            })
-            .catch(err => console.error(err));
-    };
+/* ──────────────────────────────────────────────
+   MODAL de crear / editar producto
+────────────────────────────────────────────── */
+const ProductoModal = ({ producto, onClose, onSave }) => {
+    const isEdit = Boolean(producto?.id);
+    const [form, setForm] = useState({
+        nombre:    producto?.nombre     ?? '',
+        precio:    producto?.precio     ?? '',
+        imagen_url: producto?.imagen_url ?? '',
+    });
+    const [saving, setSaving] = useState(false);
 
-    const handleGuardarProducto = async (e) => {
+    const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const url = id ? API.endpoints.producto(id) : API.endpoints.productos();
-        const method = id ? 'PUT' : 'POST';
-        const cat = categorias.find(c => c.id.toString() === categoriaId);
-        
-        await fetch(url, {
-            method,
-            headers: authHeaders(token),
-            body: JSON.stringify({ nombre, descripcion, precio, stock, stockMinimo, categoria: cat, imagen })
-        });
-        
-        setShowModalProd(false);
-        cargarDatos();
-    };
-
-    const handleEliminarProducto = async (prodId) => {
-        if(confirm("¿Seguro que deseas eliminar este producto?")) {
-            await fetch(API.endpoints.producto(prodId), {
-                method: 'DELETE',
-                headers: authGetHeaders(token)
-            });
-            cargarDatos();
-        }
-    };
-
-    const handleEditarProducto = (prod) => {
-        setId(prod.id);
-        setNombre(prod.nombre);
-        setDescripcion(prod.descripcion || '');
-        setPrecio(prod.precio);
-        setStock(prod.stock);
-        setStockMinimo(prod.stockMinimo);
-        setCategoriaId(prod.categoria.id.toString());
-        setImagen(prod.imagen || '');
-        setShowModalProd(true);
-    };
-
-    const abrirModalNuevoProd = () => {
-        setId(null); setNombre(''); setDescripcion(''); setPrecio(''); setStock(''); setStockMinimo(''); setCategoriaId(''); setImagen('');
-        setShowModalProd(true);
-    };
-
-    const handleGuardarCategoria = async (e) => {
-        e.preventDefault();
-        const url = catId ? API.endpoints.categoria(catId) : API.endpoints.categorias();
-        const method = catId ? 'PUT' : 'POST';
-        
-        await fetch(url, {
-            method,
-            headers: authHeaders(token),
-            body: JSON.stringify({ nombre: catNombre, descripcion: catDescripcion })
-        });
-        
-        setShowModalCat(false);
-        cargarDatos();
-    };
-
-    const handleEliminarCategoria = async (idCat) => {
-        if(confirm("¿Seguro que deseas eliminar esta categoría? IMPORTANTE: Fallará si tiene productos asociados.")) {
-            await fetch(API.endpoints.categoria(idCat), {
-                method: 'DELETE',
-                headers: authGetHeaders(token)
-            });
-            cargarDatos();
-        }
-    };
-
-    const handleEditarCategoria = (cat) => {
-        setCatId(cat.id);
-        setCatNombre(cat.nombre);
-        setCatDescripcion(cat.descripcion || '');
-        setShowModalCat(true);
-    };
-
-    const abrirModalNuevaCat = () => {
-        setCatId(null); setCatNombre(''); setCatDescripcion('');
-        setShowModalCat(true);
-    };
-
-    const handleGuardarOferta = async (e) => {
-        e.preventDefault();
-        const url = ofId ? API.endpoints.oferta(ofId) : API.endpoints.ofertas();
-        const method = ofId ? 'PUT' : 'POST';
-        
-        await fetch(url, {
-            method,
-            headers: authHeaders(token),
-            body: JSON.stringify({ titulo: ofTitulo, descripcion: ofDescripcion, imagen: ofImagen, activa: ofActiva })
-        });
-        
-        setShowModalOferta(false);
-        cargarDatos();
-    };
-
-    const handleEliminarOferta = async (id) => {
-        if(confirm("¿Seguro que deseas eliminar esta oferta?")) {
-            await fetch(API.endpoints.oferta(id), {
-                method: 'DELETE',
-                headers: authGetHeaders(token)
-            });
-            cargarDatos();
-        }
-    };
-
-    const handleEditarOferta = (of) => {
-        setOfId(of.id);
-        setOfTitulo(of.titulo);
-        setOfDescripcion(of.descripcion || '');
-        setOfImagen(of.imagen || '');
-        setOfActiva(of.activa);
-        setShowModalOferta(true);
-    };
-
-    const abrirModalNuevaOferta = () => {
-        setOfId(null); setOfTitulo(''); setOfDescripcion(''); setOfImagen(''); setOfActiva(true);
-        setShowModalOferta(true);
+        setSaving(true);
+        await onSave({ ...form, precio: parseFloat(form.precio) });
+        setSaving(false);
     };
 
     return (
-        <div className="container mt-5">
-            <h2 className="fw-bold mb-4 text-warning">Panel de Administración</h2>
+        <div
+            className="fixed inset-0 z-40 flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+            onClick={(e) => e.target === e.currentTarget && onClose()}
+        >
+            <div className="glass rounded-3xl w-full max-w-lg shadow-2xl shadow-black/60 animate-fade-up overflow-hidden">
 
-            <ul className="nav nav-tabs mb-4 fw-bold">
-                <li className="nav-item">
-                    <button className={`nav-link ${activeTab === 'productos' ? 'active bg-danger text-warning' : 'text-danger'}`} onClick={() => setActiveTab('productos')}>
-                        Productos
+                {/* Header */}
+                <div className="flex items-center justify-between px-7 py-5 border-b border-white/5">
+                    <h2 className="text-lg font-bold text-white">
+                        {isEdit ? 'Editar Producto' : 'Nuevo Producto'}
+                    </h2>
+                    <button
+                        id="modal-close"
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
-                </li>
-                <li className="nav-item">
-                    <button className={`nav-link ${activeTab === 'categorias' ? 'active bg-danger text-warning' : 'text-danger'}`} onClick={() => setActiveTab('categorias')}>
-                        Categorías
-                    </button>
-                </li>
-                <li className="nav-item">
-                    <button className={`nav-link ${activeTab === 'ofertas' ? 'active bg-danger text-warning' : 'text-danger'}`} onClick={() => setActiveTab('ofertas')}>
-                        Ofertas
-                    </button>
-                </li>
-            </ul>
-
-            {activeTab === 'productos' && (
-                <div className="card shadow-sm border-0 animate__animated animate__fadeIn">
-                    <div className="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 pb-0">
-                        <h4 className="fw-bold m-0 text-dark">Lista de Productos</h4>
-                        <button className="btn btn-warning fw-bold shadow-sm" onClick={abrirModalNuevoProd}>+ Nuevo Producto</button>
-                    </div>
-                    <div className="card-body">
-                        <div className="table-responsive">
-                            <table className="table table-hover align-middle">
-                                <thead className="table-light">
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Imagen</th>
-                                        <th>Nombre</th>
-                                        <th>Precio</th>
-                                        <th>Stock</th>
-                                        <th>Categoría</th>
-                                        <th className="text-end">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {productos.length === 0 ? (
-                                        <tr><td colSpan="7" className="text-center py-4 text-muted">No hay productos.</td></tr>
-                                    ) : (
-                                        productos.map(p => (
-                                            <tr key={p.id}>
-                                                <td>{p.id}</td>
-                                                <td>
-                                                    <img src={p.imagen || 'https://via.placeholder.com/50'} alt={p.nombre} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '5px' }} />
-                                                </td>
-                                                <td className="fw-semibold">{p.nombre}</td>
-                                                <td>S/ {p.precio}</td>
-                                                <td>
-                                                    <span className={`badge ${p.stock <= p.stockMinimo ? 'bg-danger' : 'bg-success'}`}>{p.stock}</span>
-                                                </td>
-                                                <td>{p.categoria?.nombre}</td>
-                                                <td className="text-end text-nowrap">
-                                                    <button className="btn btn-sm btn-outline-primary me-2 fw-bold" onClick={() => handleEditarProducto(p)}>Editar</button>
-                                                    <button className="btn btn-sm btn-outline-danger fw-bold" onClick={() => handleEliminarProducto(p.id)}>Eliminar</button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
-            )}
 
-            {activeTab === 'categorias' && (
-                <div className="card shadow-sm border-0 animate__animated animate__fadeIn">
-                    <div className="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 pb-0">
-                        <h4 className="fw-bold m-0 text-dark">Lista de Categorías</h4>
-                        <button className="btn btn-warning fw-bold shadow-sm" onClick={abrirModalNuevaCat}>+ Nueva Categoría</button>
-                    </div>
-                    <div className="card-body">
-                        <div className="table-responsive">
-                            <table className="table table-hover align-middle">
-                                <thead className="table-light">
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Nombre</th>
-                                        <th>Descripción</th>
-                                        <th className="text-end">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {categorias.length === 0 ? (
-                                        <tr><td colSpan="4" className="text-center py-4 text-muted">No hay categorías.</td></tr>
-                                    ) : (
-                                        categorias.map(c => (
-                                            <tr key={c.id}>
-                                                <td>{c.id}</td>
-                                                <td className="fw-semibold">{c.nombre}</td>
-                                                <td className="text-muted">{c.descripcion || '-'}</td>
-                                                <td className="text-end text-nowrap">
-                                                    <button className="btn btn-sm btn-outline-primary me-2 fw-bold" onClick={() => handleEditarCategoria(c)}>Editar</button>
-                                                    <button className="btn btn-sm btn-outline-danger fw-bold" onClick={() => handleEliminarCategoria(c.id)}>Eliminar</button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            )}
+                {/* Formulario */}
+                <form onSubmit={handleSubmit} className="px-7 py-6 space-y-5">
 
-            {activeTab === 'ofertas' && (
-                <div className="card shadow-sm border-0 animate__animated animate__fadeIn">
-                    <div className="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center pt-4 pb-0">
-                        <h4 className="fw-bold m-0 text-dark">Lista de Ofertas (Banners)</h4>
-                        <button className="btn btn-warning fw-bold shadow-sm" onClick={abrirModalNuevaOferta}>+ Nueva Oferta</button>
+                    {/* Nombre */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Nombre del producto</label>
+                        <input
+                            id="input-nombre"
+                            name="nombre"
+                            type="text"
+                            value={form.nombre}
+                            onChange={handleChange}
+                            required
+                            placeholder="Ej: Cuaderno A4"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all hover:border-white/20"
+                        />
                     </div>
-                    <div className="card-body">
-                        <div className="table-responsive">
-                            <table className="table table-hover align-middle">
-                                <thead className="table-light">
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Imagen</th>
-                                        <th>Título</th>
-                                        <th>Descripción</th>
-                                        <th>Estado</th>
-                                        <th className="text-end">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {ofertas.length === 0 ? (
-                                        <tr><td colSpan="6" className="text-center py-4 text-muted">No hay ofertas configuradas.</td></tr>
-                                    ) : (
-                                        ofertas.map(of => (
-                                            <tr key={of.id}>
-                                                <td>{of.id}</td>
-                                                <td>
-                                                    <img src={of.imagen || 'https://via.placeholder.com/150x50'} alt={of.titulo} style={{ height: '40px', objectFit: 'cover', borderRadius: '5px' }} />
-                                                </td>
-                                                <td className="fw-semibold">{of.titulo}</td>
-                                                <td className="text-muted">{of.descripcion || '-'}</td>
-                                                <td>
-                                                    <span className={`badge ${of.activa ? 'bg-success' : 'bg-secondary'}`}>{of.activa ? 'Activa' : 'Inactiva'}</span>
-                                                </td>
-                                                <td className="text-end text-nowrap">
-                                                    <button className="btn btn-sm btn-outline-primary me-2 fw-bold" onClick={() => handleEditarOferta(of)}>Editar</button>
-                                                    <button className="btn btn-sm btn-outline-danger fw-bold" onClick={() => handleEliminarOferta(of.id)}>Eliminar</button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            )}
 
-            {showModalProd && (
-                <div className="modal show d-block" tabIndex="-1" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
-                    <div className="modal-dialog modal-dialog-centered modal-lg">
-                        <div className="modal-content border-0 shadow">
-                            <div className="modal-header border-bottom-0 bg-light">
-                                <h5 className="modal-title fw-bold text-dark">{id ? 'Editar Producto' : 'Nuevo Producto'}</h5>
-                                <button type="button" className="btn-close" onClick={() => setShowModalProd(false)}></button>
+                    {/* Precio */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Precio (S/)</label>
+                        <input
+                            id="input-precio"
+                            name="precio"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={form.precio}
+                            onChange={handleChange}
+                            required
+                            placeholder="0.00"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all hover:border-white/20"
+                        />
+                    </div>
+
+                    {/* Imagen URL */}
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">URL de imagen (opcional)</label>
+                        <input
+                            id="input-imagen"
+                            name="imagen_url"
+                            type="url"
+                            value={form.imagen_url}
+                            onChange={handleChange}
+                            placeholder="https://ejemplo.com/imagen.jpg"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all hover:border-white/20"
+                        />
+                        {form.imagen_url && (
+                            <div className="mt-3 rounded-xl overflow-hidden border border-white/10 h-24 flex items-center justify-center bg-white/5">
+                                <img src={form.imagen_url} alt="preview" className="h-full object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
                             </div>
-                            <form onSubmit={handleGuardarProducto}>
-                                <div className="modal-body p-4">
-                                    <div className="row">
-                                        <div className="col-md-6 mb-3">
-                                            <label className="form-label fw-bold text-muted small">Nombre del Producto</label>
-                                            <input type="text" className="form-control" value={nombre} onChange={e => setNombre(e.target.value)} required />
-                                        </div>
-                                        <div className="col-md-6 mb-3">
-                                            <label className="form-label fw-bold text-muted small">Categoría</label>
-                                            <select className="form-select" value={categoriaId} onChange={e => setCategoriaId(e.target.value)} required>
-                                                <option value="">Seleccione una categoría</option>
-                                                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="row">
-                                        <div className="col-md-4 mb-3">
-                                            <label className="form-label fw-bold text-muted small">Precio</label>
-                                            <input type="number" step="0.01" className="form-control" value={precio} onChange={e => setPrecio(e.target.value)} required />
-                                        </div>
-                                        <div className="col-md-4 mb-3">
-                                            <label className="form-label fw-bold text-muted small">Stock Actual</label>
-                                            <input type="number" className="form-control" value={stock} onChange={e => setStock(e.target.value)} required />
-                                        </div>
-                                        <div className="col-md-4 mb-3">
-                                            <label className="form-label fw-bold text-muted small">Stock Mínimo</label>
-                                            <input type="number" className="form-control" value={stockMinimo} onChange={e => setStockMinimo(e.target.value)} required />
-                                        </div>
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">Descripción</label>
-                                        <textarea className="form-control" rows="2" value={descripcion} onChange={e => setDescripcion(e.target.value)}></textarea>
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">URL de la Imagen (Opcional)</label>
-                                        <input type="url" className="form-control" value={imagen} onChange={e => setImagen(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" />
-                                    </div>
-                                </div>
-                                <div className="modal-footer border-top-0 bg-light">
-                                    <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setShowModalProd(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-warning fw-bold px-4">Guardar</button>
-                                </div>
-                            </form>
-                        </div>
+                        )}
                     </div>
-                </div>
-            )}
 
-            {showModalCat && (
-                <div className="modal show d-block" tabIndex="-1" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
-                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content border-0 shadow">
-                            <div className="modal-header border-bottom-0 bg-light">
-                                <h5 className="modal-title fw-bold text-dark">{catId ? 'Editar Categoría' : 'Nueva Categoría'}</h5>
-                                <button type="button" className="btn-close" onClick={() => setShowModalCat(false)}></button>
-                            </div>
-                            <form onSubmit={handleGuardarCategoria}>
-                                <div className="modal-body p-4">
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">Nombre de Categoría</label>
-                                        <input type="text" className="form-control" value={catNombre} onChange={e => setCatNombre(e.target.value)} required />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">Descripción (Opcional)</label>
-                                        <textarea className="form-control" rows="3" value={catDescripcion} onChange={e => setCatDescripcion(e.target.value)}></textarea>
-                                    </div>
-                                </div>
-                                <div className="modal-footer border-top-0 bg-light">
-                                    <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setShowModalCat(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-warning fw-bold px-4">Guardar</button>
-                                </div>
-                            </form>
-                        </div>
+                    {/* Botones */}
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 py-3 rounded-xl font-semibold text-sm text-slate-400 hover:text-white
+                                       bg-white/5 hover:bg-white/10 border border-white/10
+                                       transition-all duration-150"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            id="modal-save"
+                            type="submit"
+                            disabled={saving}
+                            className="flex-1 py-3 rounded-xl font-semibold text-sm text-white
+                                       bg-gradient-to-r from-brand-600 to-brand-500
+                                       hover:from-brand-500 hover:to-brand-400
+                                       shadow-lg shadow-brand-700/30
+                                       disabled:opacity-60 disabled:cursor-not-allowed
+                                       transition-all duration-150 active:scale-[0.98]"
+                        >
+                            {saving
+                                ? <span className="flex items-center justify-center gap-2">
+                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                    </svg>
+                                    Guardando...
+                                  </span>
+                                : isEdit ? 'Actualizar' : 'Crear Producto'
+                            }
+                        </button>
                     </div>
-                </div>
-            )}
-
-            {showModalOferta && (
-                <div className="modal show d-block" tabIndex="-1" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
-                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content border-0 shadow">
-                            <div className="modal-header border-bottom-0 bg-light">
-                                <h5 className="modal-title fw-bold text-dark">{ofId ? 'Editar Oferta' : 'Nueva Oferta'}</h5>
-                                <button type="button" className="btn-close" onClick={() => setShowModalOferta(false)}></button>
-                            </div>
-                            <form onSubmit={handleGuardarOferta}>
-                                <div className="modal-body p-4">
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">Título Promocional</label>
-                                        <input type="text" className="form-control" value={ofTitulo} onChange={e => setOfTitulo(e.target.value)} required />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">Descripción (Opcional)</label>
-                                        <textarea className="form-control" rows="2" value={ofDescripcion} onChange={e => setOfDescripcion(e.target.value)}></textarea>
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label fw-bold text-muted small">URL de la Imagen Banner</label>
-                                        <input type="url" className="form-control" value={ofImagen} onChange={e => setOfImagen(e.target.value)} placeholder="https://ejemplo.com/banner.jpg" required />
-                                    </div>
-                                    <div className="form-check form-switch mb-3">
-                                        <input className="form-check-input" type="checkbox" role="switch" id="ofActiva" checked={ofActiva} onChange={e => setOfActiva(e.target.checked)} />
-                                        <label className="form-check-label fw-bold text-muted small" htmlFor="ofActiva">Oferta Activa (Visible al público)</label>
-                                    </div>
-                                </div>
-                                <div className="modal-footer border-top-0 bg-light">
-                                    <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setShowModalOferta(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-warning fw-bold px-4">Guardar</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
+                </form>
+            </div>
         </div>
+    );
+};
+
+/* ──────────────────────────────────────────────
+   DASHBOARD PRINCIPAL
+────────────────────────────────────────────── */
+const AdminDashboard = () => {
+    const [productos, setProductos] = useState([]);
+    const [fetching, setFetching] = useState(true);
+    const [modal, setModal]   = useState(null);   // null | {} | {id, nombre, precio, imagen_url}
+    const [search, setSearch] = useState('');
+    const [toast, setToast]   = useState(null);   // { message, type }
+
+    const showToast = (message, type = 'success') => setToast({ message, type });
+
+    const cargar = useCallback(async () => {
+        setFetching(true);
+        try {
+            const data = await getProductos();
+            setProductos(data);
+        } catch (err) {
+            showToast('Error al cargar productos: ' + err.message, 'error');
+        } finally {
+            setFetching(false);
+        }
+    }, []);
+
+    useEffect(() => { cargar(); }, [cargar]);
+
+    const handleSave = async (formData) => {
+        try {
+            if (modal?.id) {
+                await updateProducto(modal.id, formData);
+                showToast('Producto actualizado correctamente');
+            } else {
+                await insertProducto(formData);
+                showToast('Producto creado correctamente');
+            }
+            setModal(null);
+            cargar();
+        } catch (err) {
+            showToast('Error al guardar: ' + err.message, 'error');
+        }
+    };
+
+    const handleDelete = async (id, nombre) => {
+        if (!window.confirm(`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`)) return;
+        try {
+            await deleteProducto(id);
+            showToast(`"${nombre}" eliminado correctamente`);
+            cargar();
+        } catch (err) {
+            showToast('Error al eliminar: ' + err.message, 'error');
+        }
+    };
+
+    const filtrados = productos.filter(p =>
+        p.nombre?.toLowerCase().includes(search.toLowerCase())
+    );
+
+    return (
+        <>
+            {/* ── Toast ── */}
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+            {/* ── Modal ── */}
+            {modal !== null && (
+                <ProductoModal
+                    producto={modal}
+                    onClose={() => setModal(null)}
+                    onSave={handleSave}
+                />
+            )}
+
+            {/* ── Header de sección ── */}
+            <div className="mb-8">
+                <div className="flex items-center gap-3 mb-1">
+                    <div className="w-1 h-7 rounded-full bg-gradient-to-b from-brand-400 to-brand-600" />
+                    <h1 className="text-2xl font-bold text-white">Gestión de Productos</h1>
+                </div>
+                <p className="text-sm text-slate-500 ml-4">Administra el inventario de la tienda minitodo</p>
+            </div>
+
+            {/* ── Stats rápidas ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                {[
+                    {
+                        label: 'Total productos',
+                        value: productos.length,
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />,
+                        color: 'from-brand-600/20 to-brand-700/10 border-brand-500/20 text-brand-400',
+                    },
+                    {
+                        label: 'Resultados filtrados',
+                        value: filtrados.length,
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />,
+                        color: 'from-violet-600/20 to-violet-700/10 border-violet-500/20 text-violet-400',
+                    },
+                    {
+                        label: 'Precio promedio',
+                        value: productos.length
+                            ? `S/ ${(productos.reduce((s, p) => s + Number(p.precio), 0) / productos.length).toFixed(2)}`
+                            : 'S/ 0.00',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />,
+                        color: 'from-amber-600/20 to-amber-700/10 border-amber-500/20 text-amber-400',
+                    },
+                ].map((stat) => (
+                    <div key={stat.label} className={`glass rounded-2xl p-5 bg-gradient-to-br border ${stat.color}`}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{stat.label}</p>
+                                <p className="text-2xl font-bold text-white">{stat.value}</p>
+                            </div>
+                            <svg className={`w-8 h-8 opacity-60 ${stat.color.split(' ').pop()}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                {stat.icon}
+                            </svg>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ── Tabla ── */}
+            <div className="glass rounded-3xl overflow-hidden">
+
+                {/* Toolbar */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-5 border-b border-white/5">
+                    {/* Búsqueda */}
+                    <div className="relative w-full sm:w-72">
+                        <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            id="search-productos"
+                            type="text"
+                            placeholder="Buscar producto..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500
+                                       focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+                        />
+                    </div>
+                    {/* Botón nuevo */}
+                    <button
+                        id="btn-nuevo-producto"
+                        onClick={() => setModal({})}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white
+                                   bg-gradient-to-r from-brand-600 to-brand-500
+                                   hover:from-brand-500 hover:to-brand-400
+                                   shadow-lg shadow-brand-700/30 transition-all duration-150 active:scale-[0.97] whitespace-nowrap"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Nuevo Producto
+                    </button>
+                </div>
+
+                {/* Contenido tabla */}
+                {fetching ? (
+                    <div className="flex items-center justify-center py-24">
+                        <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                ) : filtrados.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-24 text-slate-500">
+                        <svg className="w-14 h-14 mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+                        </svg>
+                        <p className="font-semibold">{search ? 'Sin resultados para tu búsqueda' : 'No hay productos aún'}</p>
+                        <p className="text-sm mt-1">{search ? 'Intenta con otro término' : 'Crea el primero con el botón de arriba'}</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left border-b border-white/5">
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Imagen</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Precio</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {filtrados.map((p) => (
+                                    <tr key={p.id} className="group hover:bg-white/3 transition-colors duration-100">
+                                        {/* Imagen */}
+                                        <td className="px-6 py-4">
+                                            <div className="w-11 h-11 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center">
+                                                {p.imagen_url
+                                                    ? <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                    : <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                      </svg>
+                                                }
+                                            </div>
+                                        </td>
+                                        {/* Nombre */}
+                                        <td className="px-6 py-4">
+                                            <span className="font-semibold text-white">{p.nombre}</span>
+                                        </td>
+                                        {/* Precio */}
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center px-3 py-1 rounded-lg bg-brand-900/50 border border-brand-700/30 text-brand-300 font-semibold text-xs">
+                                                S/ {Number(p.precio).toFixed(2)}
+                                            </span>
+                                        </td>
+                                        {/* Acciones */}
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                                <button
+                                                    id={`edit-${p.id}`}
+                                                    onClick={() => setModal(p)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold transition-all"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                    Editar
+                                                </button>
+                                                <button
+                                                    id={`delete-${p.id}`}
+                                                    onClick={() => handleDelete(p.id, p.nombre)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-900/40 hover:bg-brand-700/40 border border-brand-700/30 hover:border-brand-500/50 text-brand-400 hover:text-brand-300 text-xs font-semibold transition-all"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                    Eliminar
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Footer de tabla */}
+                {!fetching && filtrados.length > 0 && (
+                    <div className="px-6 py-3.5 border-t border-white/5 text-xs text-slate-500">
+                        Mostrando <span className="text-slate-300 font-semibold">{filtrados.length}</span> de <span className="text-slate-300 font-semibold">{productos.length}</span> productos
+                    </div>
+                )}
+            </div>
+        </>
     );
 };
 
