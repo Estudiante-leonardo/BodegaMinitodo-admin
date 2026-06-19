@@ -47,7 +47,13 @@ const ProductoModal = ({ producto, onClose, onSave }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
-        await onSave({ ...form, precio: parseFloat(form.precio) });
+        // Convertir imagen_url vacía a null para no violar constraints de BD
+        const payload = {
+            ...form,
+            precio: parseFloat(form.precio),
+            imagen_url: form.imagen_url.trim() || null,
+        };
+        await onSave(payload);
         setSaving(false);
     };
 
@@ -210,7 +216,14 @@ const AdminDashboard = () => {
             setModal(null);
             cargar();
         } catch (err) {
-            showToast('Error al guardar: ' + err.message, 'error');
+            // Supabase devuelve { message, details, hint, code }
+            const msg = err?.message || err?.details || 'Error desconocido al guardar';
+            // Mensaje amigable para el error de RLS
+            if (msg.includes('row-level security') || err?.code === '42501') {
+                showToast('Sin permisos: revisa las políticas RLS en Supabase', 'error');
+            } else {
+                showToast('Error al guardar: ' + msg, 'error');
+            }
         }
     };
 
@@ -221,7 +234,12 @@ const AdminDashboard = () => {
             showToast(`"${nombre}" eliminado correctamente`);
             cargar();
         } catch (err) {
-            showToast('Error al eliminar: ' + err.message, 'error');
+            const msg = err?.message || err?.details || 'Error desconocido';
+            if (msg.includes('row-level security') || err?.code === '42501') {
+                showToast('Sin permisos: revisa las políticas RLS en Supabase', 'error');
+            } else {
+                showToast('Error al eliminar: ' + msg, 'error');
+            }
         }
     };
 
@@ -352,7 +370,7 @@ const AdminDashboard = () => {
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {filtrados.map((p) => (
-                                    <tr key={p.id} className="group hover:bg-white/3 transition-colors duration-100">
+                                    <tr key={p.id} className="group hover:bg-white/5 transition-colors duration-100">
                                         {/* Imagen */}
                                         <td className="px-6 py-4">
                                             <div className="w-11 h-11 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center">

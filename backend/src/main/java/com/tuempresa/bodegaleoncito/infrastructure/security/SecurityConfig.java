@@ -68,11 +68,24 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                // Productos: GET público autenticado, escritura solo ADMIN
                 .requestMatchers(HttpMethod.GET, "/api/productos").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/productos/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/productos").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/productos/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasRole("ADMIN")
-                .requestMatchers("/api/categorias/**").hasRole("ADMIN")
+                // Categorías: GET autenticado, escritura solo ADMIN
+                .requestMatchers(HttpMethod.GET, "/api/categorias").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/categorias/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/categorias").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/categorias/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/categorias/**").hasRole("ADMIN")
+                // Ofertas: GET autenticado, escritura solo ADMIN
+                .requestMatchers(HttpMethod.GET, "/api/ofertas").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/ofertas/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/ofertas").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/ofertas/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/ofertas/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

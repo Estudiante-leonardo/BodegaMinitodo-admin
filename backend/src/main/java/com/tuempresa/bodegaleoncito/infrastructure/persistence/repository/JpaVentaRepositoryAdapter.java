@@ -18,8 +18,8 @@ public class JpaVentaRepositoryAdapter implements VentaRepository {
     private final SpringDataProductoRepository springDataProductoRepository;
 
     public JpaVentaRepositoryAdapter(SpringDataVentaRepository springDataVentaRepository,
-                                      SpringDataUsuarioRepository springDataUsuarioRepository,
-                                      SpringDataProductoRepository springDataProductoRepository) {
+            SpringDataUsuarioRepository springDataUsuarioRepository,
+            SpringDataProductoRepository springDataProductoRepository) {
         this.springDataVentaRepository = springDataVentaRepository;
         this.springDataUsuarioRepository = springDataUsuarioRepository;
         this.springDataProductoRepository = springDataProductoRepository;
@@ -40,7 +40,8 @@ public class JpaVentaRepositoryAdapter implements VentaRepository {
 
         if (venta.getDetalles() != null) {
             for (DetalleVenta detalle : venta.getDetalles()) {
-                ProductoEntity productoEntity = springDataProductoRepository.getReferenceById(detalle.getProducto().getId());
+                ProductoEntity productoEntity = springDataProductoRepository
+                        .getReferenceById(detalle.getProducto().getId());
                 DetalleVentaEntity detalleEntity = VentaMapper.toDetalleEntity(detalle, entity, productoEntity);
                 entity.getDetalles().add(detalleEntity);
             }

@@ -16,8 +16,19 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
+    // Clave de 64 caracteres hex = 32 bytes = 256 bits (mínimo requerido para HS256)
     private static final String SECRET_KEY_STRING = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
-    private final Key key = Keys.hmacShaKeyFor(SECRET_KEY_STRING.getBytes());
+    private final Key key = Keys.hmacShaKeyFor(hexStringToBytes(SECRET_KEY_STRING));
+
+    private static byte[] hexStringToBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                    + Character.digit(hex.charAt(i + 1), 16));
+        }
+        return data;
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);

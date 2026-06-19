@@ -99,7 +99,7 @@ const AdminLayout = ({ children }) => {
                 {/* Decoración de fondo */}
                 <div className="fixed inset-0 pointer-events-none overflow-hidden -z-0">
                     <div className="absolute -top-20 right-10 w-80 h-80 bg-brand-700/10 rounded-full blur-3xl" />
-                    <div className="absolute bottom-10 left-1/3 w-60 h-60 bg-brand-600/8 rounded-full blur-3xl" />
+                    <div className="absolute bottom-10 left-1/3 w-60 h-60 bg-brand-600/10 rounded-full blur-3xl" />
                 </div>
                 <div className="relative z-10 p-8">
                     {children}
